@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="vi" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vũ Trụ Hàng Hoá Nông Sản - Tín Hiệu Giao Dịch VIP</title>
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        bgDark: '#080c14',
+                        cardDark: 'rgba(15, 23, 42, 0.75)',
+                        neonGreen: '#10b981',
+                        neonRed: '#ef4444',
+                        neonCyan: '#06b6d4',
+                    },
+                    fontFamily: {
+                        sans: ['Plus Jakarta Sans', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                        tech: ['Orbitron', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Fonts & FontAwesome Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Orbitron:wght@500;700;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Firebase SDK (Version 9+) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+        import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+
+        // Cấu hình Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyBhGVzthyUtRCDhGDlQXRqpJtiHtfBBbT0",
+            authDomain: "database-47bf1.firebaseapp.com",
+            databaseURL: "https://database-47bf1-default-rtdb.firebaseio.com",
+            projectId: "database-47bf1",
+            storageBucket: "database-47bf1.firebasestorage.app",
+            messagingSenderId: "842931312092",
+            appId: "1:842931312092:web:bb286af1db3f856c3d2b19",
+            measurementId: "G-VS2F1C3LXZ"
+        };
+
+        // Khởi tạo Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        // Danh sách 13 mã nông sản & hàng hóa
+        const initialSymbols = [
+            { name: "LÚA MỲ", code: "ZWAZ26" },
+            { name: "NGÔ", code: "ZCEZ26" },
+            { name: "ĐẬU TƯƠNG", code: "ZSEF27" },
+            { name: "DẦU ĐẬU TƯƠNG", code: "ZLEF27" },
+            { name: "KHÔ ĐẬU TƯƠNG", code: "ZMEF27" },
+            { name: "ĐƯỜNG", code: "SBEH27" },
+            { name: "CÀ PHÊ ROBUSTA", code: "LRCF27" },
+            { name: "BÔNG", code: "CTEZ26" },
+            { name: "CACAO", code: "CCEZ26" },
+            { name: "BẠC", code: "SILZ26" },
+            { name: "BẠCH KIM", code: "PLEF27" },
+            { name: "ĐỒNG", code: "CPEZ26" },
+            { name: "VÀNG", code: "GOLD" }
+        ];
+
+        let signalsData = {};
+        let isAdmin = false;
+        const ADMIN_PASSWORD = "1925";
+
+        // Lắng nghe dữ liệu thời gian thực từ Firebase
+        const signalsRef = ref(db, 'signals');
+        onValue(signalsRef, (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                signalsData = data;
+            } else {
+                // Khởi tạo dữ liệu mặc định nếu database trống
+                initialSymbols.forEach(s => {
+                    signalsData[s.code] = Array(13).fill("TP");
+                });
+            }
+            renderDashboard();
+        });
+
+        // Đẩy cập nhật lên Firebase
+        window.toggleSignal = function(symbolCode, index) {
+            if (!isAdmin) {
+                showToast("🔒 Hãy đăng nhập Admin để thay đổi trạng thái!", "error");
+                return;
+            }
+            if (!signalsData[symbolCode]) {
+                signalsData[symbolCode] = Array(13).fill("TP");
+            }
+            signalsData[symbolCode][index] = signalsData[symbolCode][index] === "TP" ? "SL" : "TP";
+            
+            // Cập nhật Firebase
+            set(ref(db, 'signals/' + symbolCode), signalsData[symbolCode]);
+        };
+
+        // Render toàn bộ giao diện
+        function renderDashboard() {
+            let totalTP = 0;
+            let totalSL = 0;
+            let totalSignals = 0;
+
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();
+            const container = document.getElementById('symbolsContainer');
+            container.innerHTML = '';
+
+            initialSymbols.forEach(symbol => {
+                const dots = signalsData[symbol.code] || Array(13).fill("TP");
+                
+                // Đếm số liệu tổng
+                dots.forEach(status => {
+                    totalSignals++;
+                    if (status === 'TP') totalTP++;
+                    else if (status === 'SL') totalSL++;
+                });
+
+                // Lọc theo từ khóa tìm kiếm
+                const matchName = symbol.name.toLowerCase().includes(searchTerm);
+                const matchCode = symbol.code.toLowerCase().includes(searchTerm);
+                
+                if (searchTerm !== '' && !matchName && !matchCode) {
+                    return;
+                }
+
+                // Tính Winrate riêng cho từng mã
+                const symbolTP = dots.filter(d => d === 'TP').length;
+                const symbolWinrate = Math.round((symbolTP / 13) * 100);
+
+                // Tạo thẻ hiển thị mã hàng hóa
+                const card = document.createElement('div');
+                card.className = "glass-card p-5 rounded-2xl transition-all duration-300 hover:border-emerald-500/50 hover:shadow-[0_0_20px_rgba(16,185,129,0.15)]";
+                
+                let dotsHTML = '';
+                dots.forEach((status, i) => {
+                    const isTP = status === 'TP';
+                    dotsHTML += `
+                        <button onclick="window.toggleSignal('${symbol.code}', ${i})" 
+                                title="Lệnh ${i+1}: ${isTP ? 'TP (Chốt Lời)' : 'SL (Cắt Lỗ)'} ${isAdmin ? '- Bấm để đổi' : ''}" 
+                                class="relative group/dot flex items-center justify-center p-1 focus:outline-none transition-transform hover:scale-125 flex-shrink-0">
+                            <span class="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
+                                isTP 
+                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 shadow-[0_0_10px_rgba(16,185,129,0.4)]' 
+                                : 'bg-rose-500/20 text-rose-400 border border-rose-500/50 shadow-[0_0_10px_rgba(244,63,94,0.4)]'
+                            } ${isAdmin ? 'cursor-pointer animate-pulse' : 'cursor-default'}">
+                                ${isTP ? '🟢' : '🔴'}
+                            </span>
+                        </button>
+                    `;
+                });
+
+                card.innerHTML = `
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 border-b border-slate-700/50 pb-3">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 border border-emerald-500/30 flex items-center justify-center font-tech font-bold text-emerald-400">
+                                ${symbol.code.substring(0,2)}
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-lg text-white tracking-wide">${symbol.name}</h3>
+                                <span class="font-mono text-xs text-cyan-400 bg-cyan-950/60 border border-cyan-800/50 px-2 py-0.5 rounded">${symbol.code}</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-4 text-xs font-mono">
+                            <div class="text-slate-400">Tỷ lệ thắng: <span class="font-bold text-emerald-400 text-sm">${symbolWinrate}%</span></div>
+                            <div class="bg-slate-800/80 px-2.5 py-1 rounded-md border border-slate-700 text-slate-300">
+                                <span class="text-emerald-400 font-bold">${symbolTP} TP</span> / <span class="text-rose-400 font-bold">${13 - symbolTP} SL</span>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Các chấm xếp thẳng 1 hàng ngang duy nhất, có hỗ trợ cuộn mượt mà trên màn hình nhỏ -->
+                    <div class="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin">
+                        ${dotsHTML}
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+
+            // Cập nhật các Thẻ KPI
+            const overallWinrate = totalSignals > 0 ? ((totalTP / totalSignals) * 100).toFixed(1) : "0.0";
+            
+            document.getElementById('statWinrate').innerText = overallWinrate + "%";
+            document.getElementById('statTotalTP').innerText = totalTP;
+            document.getElementById('statTotalSL').innerText = totalSL;
+            document.getElementById('statTotalSignals').innerText = totalSignals;
+        }
+
+        // Quản lý Chế độ Admin
+        window.toggleAdminMode = function() {
+            if (!isAdmin) {
+                const pwd = prompt("🔒 Nhập mật khẩu quản trị viên (Admin):");
+                if (pwd === ADMIN_PASSWORD) {
+                    isAdmin = true;
+                    document.getElementById('adminBtn').innerHTML = '<i class="fa-solid fa-lock-open text-emerald-400"></i> <span class="text-emerald-400">Admin Mode (Bật)</span>';
+                    document.getElementById('adminBtn').classList.add('border-emerald-500/50', 'bg-emerald-950/40');
+                    showToast("🔓 Đã kích hoạt Chế độ Admin!", "success");
+                } else if (pwd !== null) {
+                    showToast("❌ Mật khẩu không chính xác!", "error");
+                }
+            } else {
+                isAdmin = false;
+                document.getElementById('adminBtn').innerHTML = '<i class="fa-solid fa-lock text-slate-400"></i> <span class="text-slate-400">Admin Mode</span>';
+                document.getElementById('adminBtn').classList.remove('border-emerald-500/50', 'bg-emerald-950/40');
+                showToast("🔒 Đã khóa Chế độ Admin!", "info");
+            }
+            renderDashboard();
+        };
+
+        // Tìm kiếm Realtime
+        document.getElementById('searchInput').addEventListener('input', renderDashboard);
+
+        function showToast(msg, type) {
+            const toast = document.createElement('div');
+            toast.className = `fixed bottom-5 right-5 z-50 px-4 py-3 rounded-xl shadow-2xl border text-sm font-semibold flex items-center gap-2 transition-all duration-500 transform translate-y-10 opacity-0 ${
+                type === 'success' ? 'bg-emerald-950/90 text-emerald-300 border-emerald-500/50' : 
+                type === 'error' ? 'bg-rose-950/90 text-rose-300 border-rose-500/50' : 'bg-slate-900/90 text-slate-300 border-slate-700'
+            }`;
+            toast.innerHTML = msg;
+            document.body.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.remove('translate-y-10', 'opacity-0');
+            }, 10);
+            setTimeout(() => {
+                toast.classList.add('translate-y-10', 'opacity-0');
+                setTimeout(() => toast.remove(), 500);
+            }, 3000);
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #080c14;
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(16, 185, 129, 0.08) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(6, 182, 212, 0.08) 0px, transparent 50%);
+            background-attachment: fixed;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        .glass-card {
+            background: rgba(15, 23, 42, 0.65);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        .text-gradient {
+            background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+    </style>
+</head>
+<body class="text-slate-100 min-h-screen pb-16">
+
+    <!-- Header & Navigation -->
+    <header class="border-b border-slate-800/80 glass-card sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500 to-cyan-500 p-0.5 shadow-[0_0_20px_rgba(16,185,129,0.3)]">
+                    <div class="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center">
+                        <i class="fa-solid fa-chart-line text-emerald-400 text-xl"></i>
+                    </div>
+                </div>
+                <div>
+                    <h1 class="font-bold text-xl sm:text-2xl tracking-tight text-white font-tech">VŨ TRỤ HÀNG HOÁ</h1>
+                    <p class="text-xs text-emerald-400 font-medium tracking-widest uppercase">Tín Hiệu Nông Sản & Kim Loại Realtime</p>
+                </div>
+            </div>
+
+            <a href="https://zalo.me/0396150148" target="_blank" 
+               class="hidden sm:flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-bold px-5 py-2.5 rounded-xl transition-all duration-300 shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_25px_rgba(16,185,129,0.5)] transform hover:-translate-y-0.5">
+                <i class="fa-brands fa-telegram text-lg"></i>
+                <span>Vào Nhóm BOT SIGNALS VIP</span>
+            </a>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-8">
+
+        <!-- Banner Tiêu Đề -->
+        <div class="text-center space-y-3 py-4">
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold uppercase tracking-wider">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                Dữ Liệu Đồng Bộ Trực Tiếp Từ Tín Hiệu Bot
+            </div>
+            <h2 class="text-3xl sm:text-5xl font-black tracking-tight text-white font-tech">
+                THỐNG KÊ LỆNH <span class="text-gradient">TP / SL REALTIME</span>
+            </h2>
+            <p class="text-slate-400 text-sm sm:text-base max-w-2xl mx-auto">
+                Bảng tổng hợp kết quả giao dịch tất cả các mã hàng hoá mới nhất. Tự động cập nhật tức thì theo tín hiệu từ nhóm BOT VIP.
+            </p>
+        </div>
+
+        <!-- Dashboard 4 Thẻ KPI -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- Winrate -->
+            <div class="glass-card p-5 rounded-2xl relative overflow-hidden border-l-4 border-l-emerald-500">
+                <div class="flex items-center justify-between text-slate-400 mb-2">
+                    <span class="text-xs font-semibold uppercase tracking-wider">Tỷ Lệ Thắng (Winrate)</span>
+                    <i class="fa-solid fa-trophy text-amber-400"></i>
+                </div>
+                <div class="text-2xl sm:text-4xl font-extrabold text-white font-mono" id="statWinrate">0%</div>
+                <div class="text-xs text-emerald-400 mt-2 flex items-center gap-1">
+                    <i class="fa-solid fa-arrow-trend-up"></i>
+                    <span>Tối ưu hóa lợi nhuận</span>
+                </div>
+            </div>
+
+            <!-- Số Lệnh TP -->
+            <div class="glass-card p-5 rounded-2xl relative overflow-hidden border-l-4 border-l-emerald-400">
+                <div class="flex items-center justify-between text-slate-400 mb-2">
+                    <span class="text-xs font-semibold uppercase tracking-wider">Tổng Lệnh TP (Chốt Lời)</span>
+                    <i class="fa-solid fa-circle-check text-emerald-400"></i>
+                </div>
+                <div class="text-2xl sm:text-4xl font-extrabold text-emerald-400 font-mono" id="statTotalTP">0</div>
+                <div class="text-xs text-slate-400 mt-2">🟢 Đạt mục tiêu chốt lời</div>
+            </div>
+
+            <!-- Số Lệnh SL -->
+            <div class="glass-card p-5 rounded-2xl relative overflow-hidden border-l-4 border-l-rose-500">
+                <div class="flex items-center justify-between text-slate-400 mb-2">
+                    <span class="text-xs font-semibold uppercase tracking-wider">Tổng Lệnh SL (Cắt Lỗ)</span>
+                    <i class="fa-solid fa-circle-xmark text-rose-400"></i>
+                </div>
+                <div class="text-2xl sm:text-4xl font-extrabold text-rose-400 font-mono" id="statTotalSL">0</div>
+                <div class="text-xs text-slate-400 mt-2">🔴 Quản trị rủi ro nghiêm ngặt</div>
+            </div>
+
+            <!-- Tổng Số Lệnh -->
+            <div class="glass-card p-5 rounded-2xl relative overflow-hidden border-l-4 border-l-cyan-500">
+                <div class="flex items-center justify-between text-slate-400 mb-2">
+                    <span class="text-xs font-semibold uppercase tracking-wider">Tổng Lệnh Đã Bắn</span>
+                    <i class="fa-solid fa-bolt text-cyan-400"></i>
+                </div>
+                <div class="text-2xl sm:text-4xl font-extrabold text-cyan-400 font-mono" id="statTotalSignals">0</div>
+                <div class="text-xs text-slate-400 mt-2">13 mã hàng hóa theo dõi</div>
+            </div>
+        </div>
+
+        <!-- Thanh Tìm Kiếm & Công Cụ Control -->
+        <div class="glass-card p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div class="relative w-full sm:w-96">
+                <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                <input type="text" id="searchInput" placeholder="Tìm tên nông sản hoặc mã (Ví dụ: Vàng, ZWAZ26...)" 
+                       class="w-full bg-slate-900/80 border border-slate-700/80 rounded-xl pl-11 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-all">
+            </div>
+
+            <div class="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+                <div class="flex items-center gap-2 text-xs text-slate-400 bg-slate-900/60 px-3 py-2 rounded-xl border border-slate-800">
+                    <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> TP</span>
+                    <span class="flex items-center gap-1 ml-2"><span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span> SL</span>
+                </div>
+                <button id="adminBtn" onclick="toggleAdminMode()" class="px-3 py-2 rounded-xl border border-slate-700 bg-slate-900/80 text-xs font-semibold flex items-center gap-2 hover:bg-slate-800 transition-all">
+                    <i class="fa-solid fa-lock text-slate-400"></i>
+                    <span class="text-slate-400">Admin Mode</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Danh Sách 13 Mã Nông Sản -->
+        <div id="symbolsContainer" class="space-y-4">
+            <!-- Render tự động bởi JS -->
+        </div>
+
+        <!-- Khối kêu gọi tham gia (CTA Section) -->
+        <div class="glass-card rounded-3xl p-8 sm:p-12 text-center relative overflow-hidden border border-emerald-500/30">
+            <div class="absolute -right-20 -bottom-20 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
+            <div class="absolute -left-20 -top-20 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+            <div class="relative z-10 space-y-6 max-w-2xl mx-auto">
+                <h3 class="text-2xl sm:text-4xl font-black text-white font-tech">SẴN SÀNG NHẬN TÍN HIỆU CHUẨN XÁC?</h3>
+                <p class="text-slate-300 text-sm sm:text-base">
+                    Gia nhập ngay kênh SIGNALS VIP của chúng tôi để không bỏ lỡ bất kỳ điểm vào lệnh, Chốt Lời (TP) và Cắt Lỗ (SL) chi tiết nào cho tất cả mã nông sản và kim loại hàng ngày!
+                </p>
+                <div class="pt-2">
+                    <a href="https://zalo.me/0396150148" target="_blank" 
+                       class="inline-flex items-center justify-center gap-3 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-black text-base sm:text-lg px-8 py-4 rounded-2xl shadow-[0_0_30px_rgba(16,185,129,0.4)] hover:shadow-[0_0_40px_rgba(16,185,129,0.6)] transition-all duration-300 transform hover:-translate-y-1 w-full sm:w-auto">
+                        <i class="fa-brands fa-telegram text-2xl"></i>
+                        <span>LIÊN HỆ ZALO: 0396.150.148</span>
+                        <span> Hoặc Click Để Tham Gia Nhận Tín Hiệu Ngay</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="mt-16 text-center text-xs text-slate-500">
+        <p>© 2026 Vũ Trụ Hàng Hoá Nông Sản. All rights reserved.</p>
+    </footer>
+
+</body>
+</html>
