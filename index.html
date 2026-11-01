@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Vũ Trụ Hàng Hoá Nông Sản - Tín Hiệu Giao Dịch VIP</title>
     
+    <!-- FAVICON ICON -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2228%22 fill=%22%23080c14%22 stroke=%22%2310b981%22 stroke-width=%228%22/><path d=%22M30 65 L45 50 L58 60 L72 35%22 fill=%22none%22 stroke=%22%2310b981%22 stroke-width=%229%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22/><path d=%22M30 35 L30 70 L70 70%22 fill=%22none%22 stroke=%22%2310b981%22 stroke-width=%229%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22/></svg>">
+
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -30,7 +33,7 @@
     </script>
     
     <!-- Fonts & FontAwesome Icons -->
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Orbitron:wght@500;700;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Orbitron:wght@500;700;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <!-- Firebase SDK (Version 9+) -->
@@ -38,7 +41,6 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
         import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
 
-        // Cấu hình Firebase
         const firebaseConfig = {
             apiKey: "AIzaSyBhGVzthyUtRCDhGDlQXRqpJtiHtfBBbT0",
             authDomain: "database-47bf1.firebaseapp.com",
@@ -50,11 +52,9 @@
             measurementId: "G-VS2F1C3LXZ"
         };
 
-        // Khởi tạo Firebase
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        // Danh sách 13 mã hàng hóa cho tab Tín hiệu
         const initialSymbols = [
             { name: "LÚA MỲ", code: "ZWAZ26" },
             { name: "NGÔ", code: "ZCEZ26" },
@@ -71,8 +71,7 @@
             { name: "VÀNG", code: "GOLD" }
         ];
 
-        // 19 mã mặc định cho bảng Ký quỹ & Phí
-        const initialMargins = [
+        const defaultMargins = [
             { name: "LÚA MỲ", code: "ZWAZ26", margin: "45.000.000", fee: "350.000" },
             { name: "NGÔ", code: "ZCEZ26", margin: "38.000.000", fee: "350.000" },
             { name: "ĐẬU TƯƠNG", code: "ZSEF27", margin: "62.000.000", fee: "350.000" },
@@ -95,11 +94,11 @@
         ];
 
         let signalsData = {};
-        let marginData = {};
         let isAdmin = false;
         const ADMIN_PASSWORD = "1925";
 
-        // Lắng nghe tín hiệu Realtime từ Firebase
+        let marginList = JSON.parse(localStorage.getItem('local_margins')) || defaultMargins;
+
         const signalsRef = ref(db, 'signals');
         onValue(signalsRef, (snapshot) => {
             const data = snapshot.val();
@@ -113,37 +112,15 @@
             renderDashboard();
         });
 
-        // Lắng nghe dữ liệu Ký quỹ & Phí Realtime từ Firebase
-        const marginsRef = ref(db, 'margins');
-        onValue(marginsRef, (snapshot) => {
-            const data = snapshot.val();
-            if (data) {
-                marginData = data;
-            } else {
-                initialMargins.forEach(m => {
-                    marginData[m.code] = {
-                        name: m.name,
-                        margin: m.margin,
-                        fee: m.fee
-                    };
-                });
-            }
-            renderMarginTable();
-        });
-
-        // Đẩy cập nhật tín hiệu lên Firebase
         window.toggleSignal = function(symbolCode, index) {
             if (!isAdmin) return;
-
             if (!signalsData[symbolCode]) {
                 signalsData[symbolCode] = Array(13).fill("TP");
             }
             signalsData[symbolCode][index] = signalsData[symbolCode][index] === "TP" ? "SL" : "TP";
-            
             set(ref(db, 'signals/' + symbolCode), signalsData[symbolCode]);
         };
 
-        // Tab Switcher
         window.switchTab = function(tabName) {
             const signalsTab = document.getElementById('signalsTab');
             const marginTab = document.getElementById('marginTab');
@@ -153,21 +130,18 @@
             if (tabName === 'signals') {
                 signalsTab.classList.remove('hidden');
                 marginTab.classList.add('hidden');
-
                 btnSignals.className = "flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-xs font-bold transition-all bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-[0_0_10px_rgba(16,185,129,0.2)] text-center";
                 btnMargin.className = "flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-xs font-medium text-slate-400 hover:text-white transition-all text-center";
             } else {
                 signalsTab.classList.add('hidden');
                 marginTab.classList.remove('hidden');
-
                 btnMargin.className = "flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-xs font-bold transition-all bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 shadow-[0_0_10px_rgba(6,182,212,0.2)] text-center";
                 btnSignals.className = "flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-xs font-medium text-slate-400 hover:text-white transition-all text-center";
             }
             renderMarginTable();
         };
 
-        // Render Bảng Ký Quỹ & Phí (19 mã)
-        function renderMarginTable() {
+        window.renderMarginTable = function() {
             const searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();
             const container = document.getElementById('marginContainer');
             const adminHeader = document.getElementById('adminColHeader');
@@ -180,13 +154,10 @@
             }
 
             container.innerHTML = '';
-            
-            const keys = Object.keys(marginData);
-            const itemsToRender = keys.length > 0 ? keys.map(code => ({ code, ...marginData[code] })) : initialMargins;
 
-            itemsToRender.forEach(item => {
-                const matchName = item.name ? item.name.toLowerCase().includes(searchTerm) : false;
-                const matchCode = item.code ? item.code.toLowerCase().includes(searchTerm) : false;
+            marginList.forEach((item, index) => {
+                const matchName = item.name.toLowerCase().includes(searchTerm);
+                const matchCode = item.code.toLowerCase().includes(searchTerm);
 
                 if (searchTerm !== '' && !matchName && !matchCode) {
                     return;
@@ -198,7 +169,7 @@
                     <td class="py-3.5 px-3 sm:px-4 font-bold text-white whitespace-nowrap">
                         <div class="flex items-center gap-2 sm:gap-3">
                             <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center font-tech text-[10px] sm:text-xs text-emerald-400 font-bold flex-shrink-0">
-                                ${item.code ? item.code.substring(0,2) : 'HH'}
+                                ${item.code.substring(0,2)}
                             </div>
                             <div>
                                 <div class="font-semibold">${item.name}</div>
@@ -210,8 +181,8 @@
                     <td class="py-3.5 px-3 sm:px-4 font-mono text-amber-400 font-semibold whitespace-nowrap">${item.fee} VNĐ</td>
                     ${isAdmin ? `
                         <td class="py-3.5 px-3 sm:px-4 text-center whitespace-nowrap">
-                            <button onclick="window.openEditMarginModal('${item.code}', '${item.name}', '${item.margin}', '${item.fee}')" 
-                                    class="px-2.5 py-1 bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 rounded-lg text-xs font-bold hover:bg-cyan-500/40 transition-all mr-1">
+                            <button onclick="window.openEditMarginModal(${index})" 
+                                    class="px-2.5 py-1 bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 rounded-lg text-xs font-bold hover:bg-cyan-500/40 transition-all">
                                 <i class="fa-solid fa-pen-to-square mr-1"></i>Sửa
                             </button>
                         </td>
@@ -219,16 +190,15 @@
                 `;
                 container.appendChild(tr);
             });
-        }
+        };
 
-        // Modal Sửa Ký Quỹ
-        window.openEditMarginModal = function(code, name, margin, fee) {
-            document.getElementById('oldCode').value = code;
-            document.getElementById('editCode').value = code;
-            document.getElementById('editName').value = name;
-            document.getElementById('editMargin').value = margin;
-            document.getElementById('editFee').value = fee;
-            
+        window.openEditMarginModal = function(index) {
+            const item = marginList[index];
+            document.getElementById('editIndex').value = index;
+            document.getElementById('editName').value = item.name;
+            document.getElementById('editCode').value = item.code;
+            document.getElementById('editMargin').value = item.margin;
+            document.getElementById('editFee').value = item.fee;
             document.getElementById('marginModal').classList.remove('hidden');
         };
 
@@ -237,39 +207,30 @@
         };
 
         window.saveMarginInfo = function() {
-            const oldCode = document.getElementById('oldCode').value;
-            const newCode = document.getElementById('editCode').value.trim().toUpperCase();
+            const index = document.getElementById('editIndex').value;
             const newName = document.getElementById('editName').value.trim();
+            const newCode = document.getElementById('editCode').value.trim().toUpperCase();
             const newMargin = document.getElementById('editMargin').value.trim();
             const newFee = document.getElementById('editFee').value.trim();
 
-            if (!newCode || !newName) {
-                alert("Vui lòng không để trống Tên và Mã hàng hóa!");
+            if (!newName || !newCode) {
+                alert("Vui lòng điền đầy đủ tên và mã!");
                 return;
             }
 
-            const updatedData = {
+            marginList[index] = {
                 name: newName,
+                code: newCode,
                 margin: newMargin,
                 fee: newFee
             };
 
-            if (oldCode !== newCode) {
-                set(ref(db, 'margins/' + oldCode), null).then(() => {
-                    set(ref(db, 'margins/' + newCode), updatedData).then(() => {
-                        showToast("✅ Đã cập nhật thành công!", "success");
-                        closeEditMarginModal();
-                    });
-                });
-            } else {
-                set(ref(db, 'margins/' + newCode), updatedData).then(() => {
-                    showToast("✅ Đã lưu thay đổi!", "success");
-                    closeEditMarginModal();
-                });
-            }
+            localStorage.setItem('local_margins', JSON.stringify(marginList));
+            renderMarginTable();
+            closeEditMarginModal();
+            showToast("✅ Đã cập nhật thành công!", "success");
         };
 
-        // Render Dashboard Tín Hiệu
         function renderDashboard() {
             let totalTP = 0;
             let totalSL = 0;
@@ -337,12 +298,18 @@
                             </div>
                         </div>
                     </div>
-                    <div class="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-2 scrollbar-thin">
+                    <div class="signals-scroll flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-2 scrollbar-thin">
                         ${dotsHTML}
                     </div>
                 `;
                 container.appendChild(card);
             });
+
+            setTimeout(() => {
+                document.querySelectorAll('.signals-scroll').forEach(el => {
+                    el.scrollLeft = el.scrollWidth;
+                });
+            }, 50);
 
             const overallWinrate = totalSignals > 0 ? ((totalTP / totalSignals) * 100).toFixed(1) : "0.0";
             
@@ -352,7 +319,6 @@
             document.getElementById('statTotalSignals').innerText = totalSignals;
         }
 
-        // Quản lý Chế độ Admin
         window.toggleAdminMode = function() {
             if (!isAdmin) {
                 const pwd = prompt("🔒 Nhập mật khẩu quản trị viên (Admin):");
@@ -374,7 +340,6 @@
             renderMarginTable();
         };
 
-        // Tìm kiếm Realtime
         document.getElementById('searchInput').addEventListener('input', () => {
             renderDashboard();
             renderMarginTable();
@@ -444,7 +409,7 @@
                class="flex items-center gap-1.5 sm:gap-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-bold px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm transition-all duration-300 shadow-[0_0_20px_rgba(16,185,129,0.3)] flex-shrink-0">
                 <i class="fa-brands fa-telegram text-base sm:text-lg"></i>
                 <span class="hidden xs:inline">Vào Nhóm Zalo VIP</span>
-                <span class="inline xs:hidden">Zalo VIP</span>
+                <span class="inline xs:hidden"THAM GIA NGAY</span>
             </a>
         </div>
     </header>
@@ -457,7 +422,8 @@
                 <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
                 Dữ Liệu Đồng Bộ Trực Tiếp Từ Tín Hiệu Bot
             </div>
-            <h2 class="text-2xl sm:text-5xl font-black tracking-tight text-white font-tech px-2">
+            <!-- DÙNG FONT CHUẨN ĐỂ HIỂN THỊ TIẾNG VIỆT ĐẸP VÀ ĐỒNG NHẤT -->
+            <h2 class="text-2xl sm:text-5xl font-extrabold tracking-tight text-white px-2 font-sans">
                 THỐNG KÊ LỆNH <span class="text-gradient">TP / SL REALTIME</span>
             </h2>
             <p class="text-slate-400 text-xs sm:text-base max-w-2xl mx-auto px-4">
@@ -550,11 +516,11 @@
             </div>
         </div>
 
-        <!-- TAB 2: Trang Thông tin Ký Quỹ & Phí (19 Mã) -->
+        <!-- TAB 2: Trang Thông tin Ký Quỹ & Phí (19 Mã - Có nút Sửa khi bật Admin) -->
         <div id="marginTab" class="hidden glass-card rounded-2xl p-4 sm:p-6 border border-slate-800">
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 sm:mb-6">
                 <div>
-                    <h3 class="text-base sm:text-xl font-bold text-white font-tech">BẢNG TRA CỨU KÝ QUỸ & PHÍ (19 MÃ)</h3>
+                    <h3 class="text-base sm:text-xl font-bold text-white font-tech">BẢNG TRA CỨU KÝ QUỸ & PHÍ</h3>
                     <p class="text-[11px] sm:text-xs text-slate-400 mt-0.5">Mức ký quỹ tham khảo tính theo quy chuẩn Sở Giao dịch Hàng hóa (MXV)</p>
                 </div>
                 <div class="px-3 py-1 bg-cyan-500/10 border border-cyan-500/30 rounded-lg text-cyan-400 text-[11px] sm:text-xs font-mono self-start sm:self-auto">
@@ -606,13 +572,13 @@
     <div id="marginModal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 hidden">
         <div class="glass-card w-full max-w-md rounded-2xl p-5 sm:p-6 border border-slate-700 shadow-2xl relative space-y-4">
             <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h4 class="font-bold text-base sm:text-lg text-white font-tech">CHỈNH SỬA HÀNG HÓA</h4>
+                <h4 class="font-bold text-base sm:text-lg text-white font-tech">CHỈNH SỬA THÔNG TIN MÃ</h4>
                 <button onclick="closeEditMarginModal()" class="text-slate-400 hover:text-white text-lg">
                     <i class="fa-solid fa-xmark"></i>
                 </button>
             </div>
             
-            <input type="hidden" id="oldCode">
+            <input type="hidden" id="editIndex">
 
             <div class="space-y-3 text-xs">
                 <div>
