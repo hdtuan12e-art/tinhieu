@@ -54,35 +54,35 @@
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        // Danh sách 13 mã nông sản & hàng hóa
+        // Danh sách 13 mã hàng hóa mặc định
         const initialSymbols = [
-            { name: "LÚA MỲ", code: "ZWAZ26" },
-            { name: "NGÔ", code: "ZCEZ26" },
-            { name: "ĐẬU TƯƠNG", code: "ZSEF27" },
-            { name: "DẦU ĐẬU TƯƠNG", code: "ZLEF27" },
-            { name: "KHÔ ĐẬU TƯƠNG", code: "ZMEF27" },
-            { name: "ĐƯỜNG", code: "SBEH27" },
-            { name: "CÀ PHÊ ROBUSTA", code: "LRCF27" },
-            { name: "BÔNG", code: "CTEZ26" },
-            { name: "CACAO", code: "CCEZ26" },
-            { name: "BẠC", code: "SILZ26" },
-            { name: "BẠCH KIM", code: "PLEF27" },
-            { name: "ĐỒNG", code: "CPEZ26" },
-            { name: "VÀNG", code: "GOLD" }
+            { name: "LÚA MỲ", code: "ZWAZ26", margin: "45.000.000", fee: "350.000", exchange: "CBOT", unit: "5.000 Giạ" },
+            { name: "NGÔ", code: "ZCEZ26", margin: "38.000.000", fee: "350.000", exchange: "CBOT", unit: "5.000 Giạ" },
+            { name: "ĐẬU TƯƠNG", code: "ZSEF27", margin: "62.000.000", fee: "350.000", exchange: "CBOT", unit: "5.000 Giạ" },
+            { name: "DẦU ĐẬU TƯƠNG", code: "ZLEF27", margin: "42.000.000", fee: "350.000", exchange: "CBOT", unit: "60.000 Pounds" },
+            { name: "KHÔ ĐẬU TƯƠNG", code: "ZMEF27", margin: "55.000.000", fee: "350.000", exchange: "CBOT", unit: "100 Tấn ngắn" },
+            { name: "ĐƯỜNG", code: "SBEH27", margin: "32.000.000", fee: "350.000", exchange: "ICE US", unit: "112.000 Pounds" },
+            { name: "CÀ PHÊ ROBUSTA", code: "LRCF27", margin: "95.000.000", fee: "380.000", exchange: "ICE EU", unit: "10 Tấn" },
+            { name: "BÔNG", code: "CTEZ26", margin: "50.000.000", fee: "350.000", exchange: "ICE US", unit: "50.000 Pounds" },
+            { name: "CACAO", code: "CCEZ26", margin: "110.000.000", fee: "380.000", exchange: "ICE US", unit: "10 Tấn" },
+            { name: "BẠC", code: "SILZ26", margin: "210.000.000", fee: "400.000", exchange: "COMEX", unit: "5.000 Oz" },
+            { name: "BẠCH KIM", code: "PLEF27", margin: "85.000.000", fee: "400.000", exchange: "NYMEX", unit: "50 Oz" },
+            { name: "ĐỒNG", code: "CPEZ26", margin: "140.000.000", fee: "400.000", exchange: "COMEX", unit: "25.000 Pounds" },
+            { name: "VÀNG", code: "GOLD", margin: "250.000.000", fee: "450.000", exchange: "COMEX", unit: "100 Oz" }
         ];
 
         let signalsData = {};
+        let marginData = {};
         let isAdmin = false;
         const ADMIN_PASSWORD = "1925";
 
-        // Lắng nghe dữ liệu thời gian thực từ Firebase
+        // Lắng nghe tín hiệu Realtime từ Firebase
         const signalsRef = ref(db, 'signals');
         onValue(signalsRef, (snapshot) => {
             const data = snapshot.val();
             if (data) {
                 signalsData = data;
             } else {
-                // Khởi tạo dữ liệu mặc định nếu database trống
                 initialSymbols.forEach(s => {
                     signalsData[s.code] = Array(13).fill("TP");
                 });
@@ -90,22 +90,157 @@
             renderDashboard();
         });
 
-        // Đẩy cập nhật lên Firebase
-        window.toggleSignal = function(symbolCode, index) {
-            if (!isAdmin) {
-                showToast("🔒 Hãy đăng nhập Admin để thay đổi trạng thái!", "error");
-                return;
+        // Lắng nghe dữ liệu Ký quỹ & Phí Realtime từ Firebase
+        const marginsRef = ref(db, 'margins');
+        onValue(marginsRef, (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                marginData = data;
+            } else {
+                initialSymbols.forEach(s => {
+                    marginData[s.code] = {
+                        margin: s.margin,
+                        fee: s.fee,
+                        exchange: s.exchange,
+                        unit: s.unit
+                    };
+                });
             }
+            renderMarginTable();
+        });
+
+        // Đẩy cập nhật tín hiệu lên Firebase
+        window.toggleSignal = function(symbolCode, index) {
+            if (!isAdmin) return;
+
             if (!signalsData[symbolCode]) {
                 signalsData[symbolCode] = Array(13).fill("TP");
             }
             signalsData[symbolCode][index] = signalsData[symbolCode][index] === "TP" ? "SL" : "TP";
             
-            // Cập nhật Firebase
             set(ref(db, 'signals/' + symbolCode), signalsData[symbolCode]);
         };
 
-        // Render toàn bộ giao diện
+        // Tab Switcher
+        window.switchTab = function(tabName) {
+            const signalsTab = document.getElementById('signalsTab');
+            const marginTab = document.getElementById('marginTab');
+            const btnSignals = document.getElementById('btnTabSignals');
+            const btnMargin = document.getElementById('btnTabMargin');
+
+            if (tabName === 'signals') {
+                signalsTab.classList.remove('hidden');
+                marginTab.classList.add('hidden');
+
+                btnSignals.className = "flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-xs font-bold transition-all bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-[0_0_10px_rgba(16,185,129,0.2)] text-center";
+                btnMargin.className = "flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-xs font-medium text-slate-400 hover:text-white transition-all text-center";
+            } else {
+                signalsTab.classList.add('hidden');
+                marginTab.classList.remove('hidden');
+
+                btnMargin.className = "flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-xs font-bold transition-all bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 shadow-[0_0_10px_rgba(6,182,212,0.2)] text-center";
+                btnSignals.className = "flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-xs font-medium text-slate-400 hover:text-white transition-all text-center";
+            }
+            renderMarginTable();
+        };
+
+        // Render Bảng Ký Quỹ (12 mã, bỏ Gold)
+        function renderMarginTable() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();
+            const container = document.getElementById('marginContainer');
+            const adminHeader = document.getElementById('adminColHeader');
+            if (!container) return;
+
+            if (isAdmin) {
+                adminHeader.classList.remove('hidden');
+            } else {
+                adminHeader.classList.add('hidden');
+            }
+
+            container.innerHTML = '';
+            const filteredSymbols = initialSymbols.filter(s => s.code !== 'GOLD');
+
+            filteredSymbols.forEach(symbol => {
+                const matchName = symbol.name.toLowerCase().includes(searchTerm);
+                const matchCode = symbol.code.toLowerCase().includes(searchTerm);
+
+                if (searchTerm !== '' && !matchName && !matchCode) {
+                    return;
+                }
+
+                const currentInfo = marginData[symbol.code] || {
+                    margin: symbol.margin,
+                    fee: symbol.fee,
+                    exchange: symbol.exchange,
+                    unit: symbol.unit
+                };
+
+                const tr = document.createElement('tr');
+                tr.className = "border-b border-slate-800/60 hover:bg-slate-800/30 transition-all text-xs sm:text-sm";
+                tr.innerHTML = `
+                    <td class="py-3.5 px-3 sm:px-4 font-bold text-white whitespace-nowrap">
+                        <div class="flex items-center gap-2 sm:gap-3">
+                            <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center font-tech text-[10px] sm:text-xs text-emerald-400 font-bold flex-shrink-0">
+                                ${symbol.code.substring(0,2)}
+                            </div>
+                            <div>
+                                <div class="font-semibold">${symbol.name}</div>
+                                <div class="text-[10px] sm:text-xs font-mono text-slate-400">${symbol.code}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="py-3.5 px-3 sm:px-4 font-mono text-cyan-400 font-semibold whitespace-nowrap">${currentInfo.exchange}</td>
+                    <td class="py-3.5 px-3 sm:px-4 text-slate-300 text-[11px] sm:text-xs whitespace-nowrap">${currentInfo.unit}</td>
+                    <td class="py-3.5 px-3 sm:px-4 font-mono font-bold text-emerald-400 whitespace-nowrap">${currentInfo.margin} VNĐ</td>
+                    <td class="py-3.5 px-3 sm:px-4 font-mono text-amber-400 font-semibold whitespace-nowrap">${currentInfo.fee} VNĐ</td>
+                    ${isAdmin ? `
+                        <td class="py-3.5 px-3 sm:px-4 text-center whitespace-nowrap">
+                            <button onclick="window.openEditMarginModal('${symbol.code}', '${symbol.name}')" 
+                                    class="px-2.5 py-1 bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 rounded-lg text-xs font-bold hover:bg-cyan-500/40 transition-all">
+                                <i class="fa-solid fa-pen-to-square mr-1"></i>Sửa
+                            </button>
+                        </td>
+                    ` : ''}
+                `;
+                container.appendChild(tr);
+            });
+        }
+
+        // Modal Sửa Ký Quỹ
+        window.openEditMarginModal = function(code, name) {
+            const currentInfo = marginData[code] || initialSymbols.find(s => s.code === code);
+            document.getElementById('editCode').value = code;
+            document.getElementById('editNameTitle').innerText = name + " (" + code + ")";
+            document.getElementById('editExchange').value = currentInfo.exchange || '';
+            document.getElementById('editUnit').value = currentInfo.unit || '';
+            document.getElementById('editMargin').value = currentInfo.margin || '';
+            document.getElementById('editFee').value = currentInfo.fee || '';
+            
+            document.getElementById('marginModal').classList.remove('hidden');
+        };
+
+        window.closeEditMarginModal = function() {
+            document.getElementById('marginModal').classList.add('hidden');
+        };
+
+        window.saveMarginInfo = function() {
+            const code = document.getElementById('editCode').value;
+            const updatedData = {
+                exchange: document.getElementById('editExchange').value.trim(),
+                unit: document.getElementById('editUnit').value.trim(),
+                margin: document.getElementById('editMargin').value.trim(),
+                fee: document.getElementById('editFee').value.trim()
+            };
+
+            set(ref(db, 'margins/' + code), updatedData).then(() => {
+                showToast("✅ Đã lưu thông tin ký quỹ cho " + code, "success");
+                closeEditMarginModal();
+            }).catch(err => {
+                showToast("❌ Lỗi khi lưu dữ liệu!", "error");
+            });
+        };
+
+        // Render Dashboard Tín Hiệu (13 mã đầy đủ)
         function renderDashboard() {
             let totalTP = 0;
             let totalSL = 0;
@@ -118,14 +253,12 @@
             initialSymbols.forEach(symbol => {
                 const dots = signalsData[symbol.code] || Array(13).fill("TP");
                 
-                // Đếm số liệu tổng
                 dots.forEach(status => {
                     totalSignals++;
                     if (status === 'TP') totalTP++;
                     else if (status === 'SL') totalSL++;
                 });
 
-                // Lọc theo từ khóa tìm kiếm
                 const matchName = symbol.name.toLowerCase().includes(searchTerm);
                 const matchCode = symbol.code.toLowerCase().includes(searchTerm);
                 
@@ -133,13 +266,11 @@
                     return;
                 }
 
-                // Tính Winrate riêng cho từng mã
                 const symbolTP = dots.filter(d => d === 'TP').length;
                 const symbolWinrate = Math.round((symbolTP / 13) * 100);
 
-                // Tạo thẻ hiển thị mã hàng hóa
                 const card = document.createElement('div');
-                card.className = "glass-card p-5 rounded-2xl transition-all duration-300 hover:border-emerald-500/50 hover:shadow-[0_0_20px_rgba(16,185,129,0.15)]";
+                card.className = "glass-card p-4 sm:p-5 rounded-2xl transition-all duration-300 hover:border-emerald-500/50 hover:shadow-[0_0_20px_rgba(16,185,129,0.15)]";
                 
                 let dotsHTML = '';
                 dots.forEach((status, i) => {
@@ -147,8 +278,8 @@
                     dotsHTML += `
                         <button onclick="window.toggleSignal('${symbol.code}', ${i})" 
                                 title="Lệnh ${i+1}: ${isTP ? 'TP (Chốt Lời)' : 'SL (Cắt Lỗ)'} ${isAdmin ? '- Bấm để đổi' : ''}" 
-                                class="relative group/dot flex items-center justify-center p-1 focus:outline-none transition-transform hover:scale-125 flex-shrink-0">
-                            <span class="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
+                                class="relative group/dot flex items-center justify-center p-0.5 sm:p-1 focus:outline-none transition-transform hover:scale-125 flex-shrink-0">
+                            <span class="w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-bold transition-all duration-300 ${
                                 isTP 
                                 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 shadow-[0_0_10px_rgba(16,185,129,0.4)]' 
                                 : 'bg-rose-500/20 text-rose-400 border border-rose-500/50 shadow-[0_0_10px_rgba(244,63,94,0.4)]'
@@ -160,32 +291,30 @@
                 });
 
                 card.innerHTML = `
-                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 border-b border-slate-700/50 pb-3">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3 sm:mb-4 border-b border-slate-700/50 pb-3">
                         <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 border border-emerald-500/30 flex items-center justify-center font-tech font-bold text-emerald-400">
+                            <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 border border-emerald-500/30 flex items-center justify-center font-tech font-bold text-emerald-400 text-xs sm:text-sm flex-shrink-0">
                                 ${symbol.code.substring(0,2)}
                             </div>
                             <div>
-                                <h3 class="font-bold text-lg text-white tracking-wide">${symbol.name}</h3>
-                                <span class="font-mono text-xs text-cyan-400 bg-cyan-950/60 border border-cyan-800/50 px-2 py-0.5 rounded">${symbol.code}</span>
+                                <h3 class="font-bold text-base sm:text-lg text-white tracking-wide">${symbol.name}</h3>
+                                <span class="font-mono text-[10px] sm:text-xs text-cyan-400 bg-cyan-950/60 border border-cyan-800/50 px-2 py-0.5 rounded">${symbol.code}</span>
                             </div>
                         </div>
-                        <div class="flex items-center gap-4 text-xs font-mono">
-                            <div class="text-slate-400">Tỷ lệ thắng: <span class="font-bold text-emerald-400 text-sm">${symbolWinrate}%</span></div>
+                        <div class="flex items-center justify-between sm:justify-end gap-3 text-xs font-mono">
+                            <div class="text-slate-400">Tỷ lệ: <span class="font-bold text-emerald-400 sm:text-sm">${symbolWinrate}%</span></div>
                             <div class="bg-slate-800/80 px-2.5 py-1 rounded-md border border-slate-700 text-slate-300">
                                 <span class="text-emerald-400 font-bold">${symbolTP} TP</span> / <span class="text-rose-400 font-bold">${13 - symbolTP} SL</span>
                             </div>
                         </div>
                     </div>
-                    <!-- Các chấm xếp thẳng 1 hàng ngang duy nhất, có hỗ trợ cuộn mượt mà trên màn hình nhỏ -->
-                    <div class="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin">
+                    <div class="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-2 scrollbar-thin">
                         ${dotsHTML}
                     </div>
                 `;
                 container.appendChild(card);
             });
 
-            // Cập nhật các Thẻ KPI
             const overallWinrate = totalSignals > 0 ? ((totalTP / totalSignals) * 100).toFixed(1) : "0.0";
             
             document.getElementById('statWinrate').innerText = overallWinrate + "%";
@@ -213,14 +342,18 @@
                 showToast("🔒 Đã khóa Chế độ Admin!", "info");
             }
             renderDashboard();
+            renderMarginTable();
         };
 
         // Tìm kiếm Realtime
-        document.getElementById('searchInput').addEventListener('input', renderDashboard);
+        document.getElementById('searchInput').addEventListener('input', () => {
+            renderDashboard();
+            renderMarginTable();
+        });
 
         function showToast(msg, type) {
             const toast = document.createElement('div');
-            toast.className = `fixed bottom-5 right-5 z-50 px-4 py-3 rounded-xl shadow-2xl border text-sm font-semibold flex items-center gap-2 transition-all duration-500 transform translate-y-10 opacity-0 ${
+            toast.className = `fixed bottom-5 right-5 z-50 px-4 py-3 rounded-xl shadow-2xl border text-xs sm:text-sm font-semibold flex items-center gap-2 transition-all duration-500 transform translate-y-10 opacity-0 ${
                 type === 'success' ? 'bg-emerald-950/90 text-emerald-300 border-emerald-500/50' : 
                 type === 'error' ? 'bg-rose-950/90 text-rose-300 border-rose-500/50' : 'bg-slate-900/90 text-slate-300 border-slate-700'
             }`;
@@ -261,134 +394,180 @@
         }
     </style>
 </head>
-<body class="text-slate-100 min-h-screen pb-16">
+<body class="text-slate-100 min-h-screen pb-16 overflow-x-hidden">
 
     <!-- Header & Navigation -->
     <header class="border-b border-slate-800/80 glass-card sticky top-0 z-40">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
-            <div class="flex items-center gap-3">
-                <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500 to-cyan-500 p-0.5 shadow-[0_0_20px_rgba(16,185,129,0.3)]">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between">
+            <div class="flex items-center gap-2.5 sm:gap-3">
+                <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-tr from-emerald-500 to-cyan-500 p-0.5 shadow-[0_0_20px_rgba(16,185,129,0.3)] flex-shrink-0">
                     <div class="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center">
-                        <i class="fa-solid fa-chart-line text-emerald-400 text-xl"></i>
+                        <i class="fa-solid fa-chart-line text-emerald-400 text-base sm:text-xl"></i>
                     </div>
                 </div>
                 <div>
-                    <h1 class="font-bold text-xl sm:text-2xl tracking-tight text-white font-tech">VŨ TRỤ HÀNG HOÁ</h1>
-                    <p class="text-xs text-emerald-400 font-medium tracking-widest uppercase">Tín Hiệu Nông Sản & Kim Loại Realtime</p>
+                    <h1 class="font-bold text-base sm:text-2xl tracking-tight text-white font-tech leading-tight">VŨ TRỤ HÀNG HOÁ</h1>
+                    <p class="text-[10px] sm:text-xs text-emerald-400 font-medium tracking-wider sm:tracking-widest uppercase">Tín Hiệu Nông Sản & Kim Loại</p>
                 </div>
             </div>
 
             <a href="https://zalo.me/0396150148" target="_blank" 
-               class="hidden sm:flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-bold px-5 py-2.5 rounded-xl transition-all duration-300 shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_25px_rgba(16,185,129,0.5)] transform hover:-translate-y-0.5">
-                <i class="fa-brands fa-telegram text-lg"></i>
-                <span>Vào Nhóm BOT SIGNALS VIP</span>
+               class="flex items-center gap-1.5 sm:gap-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-bold px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm transition-all duration-300 shadow-[0_0_20px_rgba(16,185,129,0.3)] flex-shrink-0">
+                <i class="fa-brands fa-telegram text-base sm:text-lg"></i>
+                <span class="hidden xs:inline">Vào Nhóm Zalo VIP</span>
+                <span class="inline xs:hidden">Zalo VIP</span>
             </a>
         </div>
     </header>
 
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-8">
+    <main class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pt-6 sm:pt-8 space-y-6 sm:space-y-8">
 
         <!-- Banner Tiêu Đề -->
-        <div class="text-center space-y-3 py-4">
-            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold uppercase tracking-wider">
+        <div class="text-center space-y-2 sm:space-y-3 py-2">
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] sm:text-xs font-semibold uppercase tracking-wider">
                 <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
                 Dữ Liệu Đồng Bộ Trực Tiếp Từ Tín Hiệu Bot
             </div>
-            <h2 class="text-3xl sm:text-5xl font-black tracking-tight text-white font-tech">
+            <h2 class="text-2xl sm:text-5xl font-black tracking-tight text-white font-tech px-2">
                 THỐNG KÊ LỆNH <span class="text-gradient">TP / SL REALTIME</span>
             </h2>
-            <p class="text-slate-400 text-sm sm:text-base max-w-2xl mx-auto">
+            <p class="text-slate-400 text-xs sm:text-base max-w-2xl mx-auto px-4">
                 Bảng tổng hợp kết quả giao dịch tất cả các mã hàng hoá mới nhất. Tự động cập nhật tức thì theo tín hiệu từ nhóm BOT VIP.
             </p>
         </div>
 
         <!-- Dashboard 4 Thẻ KPI -->
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             <!-- Winrate -->
-            <div class="glass-card p-5 rounded-2xl relative overflow-hidden border-l-4 border-l-emerald-500">
-                <div class="flex items-center justify-between text-slate-400 mb-2">
-                    <span class="text-xs font-semibold uppercase tracking-wider">Tỷ Lệ Thắng (Winrate)</span>
-                    <i class="fa-solid fa-trophy text-amber-400"></i>
+            <div class="glass-card p-4 sm:p-5 rounded-2xl relative overflow-hidden border-l-4 border-l-emerald-500">
+                <div class="flex items-center justify-between text-slate-400 mb-1 sm:mb-2">
+                    <span class="text-[10px] sm:text-xs font-semibold uppercase tracking-wider">Tỷ Lệ Thắng</span>
+                    <i class="fa-solid fa-trophy text-amber-400 text-xs sm:text-sm"></i>
                 </div>
-                <div class="text-2xl sm:text-4xl font-extrabold text-white font-mono" id="statWinrate">0%</div>
-                <div class="text-xs text-emerald-400 mt-2 flex items-center gap-1">
+                <div class="text-xl sm:text-4xl font-extrabold text-white font-mono" id="statWinrate">0%</div>
+                <div class="text-[10px] sm:text-xs text-emerald-400 mt-1.Set sm:mt-2 flex items-center gap-1">
                     <i class="fa-solid fa-arrow-trend-up"></i>
-                    <span>Tối ưu hóa lợi nhuận</span>
+                    <span class="truncate">Tối ưu hóa lợi nhuận</span>
                 </div>
             </div>
 
             <!-- Số Lệnh TP -->
-            <div class="glass-card p-5 rounded-2xl relative overflow-hidden border-l-4 border-l-emerald-400">
-                <div class="flex items-center justify-between text-slate-400 mb-2">
-                    <span class="text-xs font-semibold uppercase tracking-wider">Tổng Lệnh TP (Chốt Lời)</span>
-                    <i class="fa-solid fa-circle-check text-emerald-400"></i>
+            <div class="glass-card p-4 sm:p-5 rounded-2xl relative overflow-hidden border-l-4 border-l-emerald-400">
+                <div class="flex items-center justify-between text-slate-400 mb-1 sm:mb-2">
+                    <span class="text-[10px] sm:text-xs font-semibold uppercase tracking-wider">Tổng Lệnh TP</span>
+                    <i class="fa-solid fa-circle-check text-emerald-400 text-xs sm:text-sm"></i>
                 </div>
-                <div class="text-2xl sm:text-4xl font-extrabold text-emerald-400 font-mono" id="statTotalTP">0</div>
-                <div class="text-xs text-slate-400 mt-2">🟢 Đạt mục tiêu chốt lời</div>
+                <div class="text-xl sm:text-4xl font-extrabold text-emerald-400 font-mono" id="statTotalTP">0</div>
+                <div class="text-[10px] sm:text-xs text-slate-400 mt-1 sm:mt-2 truncate">🟢 Đạt mục tiêu chốt lời</div>
             </div>
 
             <!-- Số Lệnh SL -->
-            <div class="glass-card p-5 rounded-2xl relative overflow-hidden border-l-4 border-l-rose-500">
-                <div class="flex items-center justify-between text-slate-400 mb-2">
-                    <span class="text-xs font-semibold uppercase tracking-wider">Tổng Lệnh SL (Cắt Lỗ)</span>
-                    <i class="fa-solid fa-circle-xmark text-rose-400"></i>
+            <div class="glass-card p-4 sm:p-5 rounded-2xl relative overflow-hidden border-l-4 border-l-rose-500">
+                <div class="flex items-center justify-between text-slate-400 mb-1 sm:mb-2">
+                    <span class="text-[10px] sm:text-xs font-semibold uppercase tracking-wider">Tổng Lệnh SL</span>
+                    <i class="fa-solid fa-circle-xmark text-rose-400 text-xs sm:text-sm"></i>
                 </div>
-                <div class="text-2xl sm:text-4xl font-extrabold text-rose-400 font-mono" id="statTotalSL">0</div>
-                <div class="text-xs text-slate-400 mt-2">🔴 Quản trị rủi ro nghiêm ngặt</div>
+                <div class="text-xl sm:text-4xl font-extrabold text-rose-400 font-mono" id="statTotalSL">0</div>
+                <div class="text-[10px] sm:text-xs text-slate-400 mt-1 sm:mt-2 truncate">🔴 Quản trị rủi ro chặt</div>
             </div>
 
             <!-- Tổng Số Lệnh -->
-            <div class="glass-card p-5 rounded-2xl relative overflow-hidden border-l-4 border-l-cyan-500">
-                <div class="flex items-center justify-between text-slate-400 mb-2">
-                    <span class="text-xs font-semibold uppercase tracking-wider">Tổng Lệnh Đã Bắn</span>
-                    <i class="fa-solid fa-bolt text-cyan-400"></i>
+            <div class="glass-card p-4 sm:p-5 rounded-2xl relative overflow-hidden border-l-4 border-l-cyan-500">
+                <div class="flex items-center justify-between text-slate-400 mb-1 sm:mb-2">
+                    <span class="text-[10px] sm:text-xs font-semibold uppercase tracking-wider">Tổng Lệnh Đã Bắn</span>
+                    <i class="fa-solid fa-bolt text-cyan-400 text-xs sm:text-sm"></i>
                 </div>
-                <div class="text-2xl sm:text-4xl font-extrabold text-cyan-400 font-mono" id="statTotalSignals">0</div>
-                <div class="text-xs text-slate-400 mt-2">13 mã hàng hóa theo dõi</div>
+                <div class="text-xl sm:text-4xl font-extrabold text-cyan-400 font-mono" id="statTotalSignals">0</div>
+                <div class="text-[10px] sm:text-xs text-slate-400 mt-1 sm:mt-2 truncate">13 mã hàng hóa</div>
             </div>
         </div>
 
-        <!-- Thanh Tìm Kiếm & Công Cụ Control -->
-        <div class="glass-card p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div class="relative w-full sm:w-96">
-                <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
-                <input type="text" id="searchInput" placeholder="Tìm tên nông sản hoặc mã (Ví dụ: Vàng, ZWAZ26...)" 
-                       class="w-full bg-slate-900/80 border border-slate-700/80 rounded-xl pl-11 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-all">
-            </div>
-
-            <div class="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
-                <div class="flex items-center gap-2 text-xs text-slate-400 bg-slate-900/60 px-3 py-2 rounded-xl border border-slate-800">
-                    <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> TP</span>
-                    <span class="flex items-center gap-1 ml-2"><span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span> SL</span>
+        <!-- Thanh Tìm Kiếm & Tab Switcher + Control -->
+        <div class="glass-card p-3 sm:p-4 rounded-2xl flex flex-col gap-3">
+            <div class="flex flex-col sm:flex-row items-center justify-between gap-3 w-full">
+                <div class="relative w-full sm:w-80">
+                    <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+                    <input type="text" id="searchInput" placeholder="Tìm tên nông sản hoặc mã..." 
+                           class="w-full bg-slate-900/80 border border-slate-700/80 rounded-xl pl-11 pr-4 py-2.5 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-all">
                 </div>
-                <button id="adminBtn" onclick="toggleAdminMode()" class="px-3 py-2 rounded-xl border border-slate-700 bg-slate-900/80 text-xs font-semibold flex items-center gap-2 hover:bg-slate-800 transition-all">
-                    <i class="fa-solid fa-lock text-slate-400"></i>
-                    <span class="text-slate-400">Admin Mode</span>
-                </button>
+
+                <!-- TAB SWITCHER (Tối ưu full width trên di động) -->
+                <div class="flex items-center bg-slate-950/80 p-1 rounded-2xl border border-slate-800 gap-1 w-full sm:w-auto">
+                    <button id="btnTabSignals" onclick="switchTab('signals')" class="flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-xs font-bold transition-all bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-[0_0_10px_rgba(16,185,129,0.2)] text-center">
+                        <i class="fa-solid fa-signal mr-1.5"></i>Tín Hiệu
+                    </button>
+                    <button id="btnTabMargin" onclick="switchTab('margin')" class="flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-xs font-medium text-slate-400 hover:text-white transition-all text-center">
+                        <i class="fa-solid fa-calculator mr-1.5"></i>Ký Quỹ & Phí
+                    </button>
+                </div>
+
+                <div class="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
+                    <div class="flex items-center gap-2 text-[11px] text-slate-400 bg-slate-900/60 px-3 py-2 rounded-xl border border-slate-800">
+                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> TP</span>
+                        <span class="flex items-center gap-1 ml-1"><span class="w-2 h-2 rounded-full bg-rose-500"></span> SL</span>
+                    </div>
+                    <button id="adminBtn" onclick="toggleAdminMode()" class="px-3 py-2 rounded-xl border border-slate-700 bg-slate-900/80 text-xs font-semibold flex items-center gap-2 hover:bg-slate-800 transition-all flex-shrink-0">
+                        <i class="fa-solid fa-lock text-slate-400"></i>
+                        <span class="text-slate-400">Admin</span>
+                    </button>
+                </div>
             </div>
         </div>
 
-        <!-- Danh Sách 13 Mã Nông Sản -->
-        <div id="symbolsContainer" class="space-y-4">
-            <!-- Render tự động bởi JS -->
+        <!-- TAB 1: Danh Sách Tín Hiệu (13 Mã) -->
+        <div id="signalsTab" class="space-y-3 sm:space-y-4">
+            <div id="symbolsContainer" class="space-y-3 sm:space-y-4">
+                <!-- Render tự động bởi JS -->
+            </div>
+        </div>
+
+        <!-- TAB 2: Trang Thông tin Ký Quỹ & Phí Giao Dịch (12 Mã - Không có Vàng) -->
+        <div id="marginTab" class="hidden glass-card rounded-2xl p-4 sm:p-6 border border-slate-800">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 sm:mb-6">
+                <div>
+                    <h3 class="text-base sm:text-xl font-bold text-white font-tech">BẢNG TRA CỨU KÝ QUỸ & PHÍ</h3>
+                    <p class="text-[11px] sm:text-xs text-slate-400 mt-0.5">Mức ký quỹ tham khảo tính theo quy chuẩn Sở Giao dịch Hàng hóa (MXV)</p>
+                </div>
+                <div class="px-3 py-1 bg-cyan-500/10 border border-cyan-500/30 rounded-lg text-cyan-400 text-[11px] sm:text-xs font-mono self-start sm:self-auto">
+                    Đơn vị: VNĐ
+                </div>
+            </div>
+
+            <!-- Bọc trong khung cuộn ngang mượt mà cho mobile -->
+            <div class="w-full overflow-x-auto scrollbar-thin">
+                <table class="w-full text-left border-collapse min-w-[650px]">
+                    <thead>
+                        <tr class="border-b border-slate-700/80 text-[11px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider">
+                            <th class="py-3 px-3 sm:px-4">Tên Hàng Hóa / Mã</th>
+                            <th class="py-3 px-3 sm:px-4">Sở Giao Dịch</th>
+                            <th class="py-3 px-3 sm:px-4">Quy Cách Hợp Đồng</th>
+                            <th class="py-3 px-3 sm:px-4">Mức Ký Quỹ</th>
+                            <th class="py-3 px-3 sm:px-4">Phí Giao Dịch/Lô</th>
+                            <th id="adminColHeader" class="py-3 px-3 sm:px-4 text-center hidden">Thao Tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="marginContainer" class="text-xs sm:text-sm divide-y divide-slate-800/40 font-sans">
+                        <!-- Render tự động bởi JS -->
+                    </tbody>
+                </table>
+            </div>
         </div>
 
         <!-- Khối kêu gọi tham gia (CTA Section) -->
-        <div class="glass-card rounded-3xl p-8 sm:p-12 text-center relative overflow-hidden border border-emerald-500/30">
+        <div class="glass-card rounded-3xl p-6 sm:p-12 text-center relative overflow-hidden border border-emerald-500/30">
             <div class="absolute -right-20 -bottom-20 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
             <div class="absolute -left-20 -top-20 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
-            <div class="relative z-10 space-y-6 max-w-2xl mx-auto">
-                <h3 class="text-2xl sm:text-4xl font-black text-white font-tech">SẴN SÀNG NHẬN TÍN HIỆU CHUẨN XÁC?</h3>
-                <p class="text-slate-300 text-sm sm:text-base">
+            <div class="relative z-10 space-y-4 sm:space-y-6 max-w-2xl mx-auto">
+                <h3 class="text-xl sm:text-4xl font-black text-white font-tech">SẴN SÀNG NHẬN TÍN HIỆU CHUẨN XÁC?</h3>
+                <p class="text-slate-300 text-xs sm:text-base px-2">
                     Gia nhập ngay kênh SIGNALS VIP của chúng tôi để không bỏ lỡ bất kỳ điểm vào lệnh, Chốt Lời (TP) và Cắt Lỗ (SL) chi tiết nào cho tất cả mã nông sản và kim loại hàng ngày!
                 </p>
                 <div class="pt-2">
                     <a href="https://zalo.me/0396150148" target="_blank" 
-                       class="inline-flex items-center justify-center gap-3 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-black text-base sm:text-lg px-8 py-4 rounded-2xl shadow-[0_0_30px_rgba(16,185,129,0.4)] hover:shadow-[0_0_40px_rgba(16,185,129,0.6)] transition-all duration-300 transform hover:-translate-y-1 w-full sm:w-auto">
-                        <i class="fa-brands fa-telegram text-2xl"></i>
-                        <span>LIÊN HỆ ZALO: 0396.150.148</span>
-                        <span> Hoặc Click Để Tham Gia Nhận Tín Hiệu Ngay</span>
+                       class="inline-flex items-center justify-center gap-2.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-black text-xs sm:text-lg px-6 sm:px-8 py-3.5 sm:py-4 rounded-2xl shadow-[0_0_30px_rgba(16,185,129,0.4)] transition-all duration-300 w-full sm:w-auto">
+                        <i class="fa-brands fa-telegram text-xl sm:text-2xl"></i>
+                        <span>ZALO: 0396.150.148 - Bấm Tham Gia Ngay</span>
                     </a>
                 </div>
             </div>
@@ -396,8 +575,49 @@
 
     </main>
 
+    <!-- MODAL CHỈNH SỬA KÝ QUỸ & PHÍ -->
+    <div id="marginModal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 hidden">
+        <div class="glass-card w-full max-w-md rounded-2xl p-5 sm:p-6 border border-slate-700 shadow-2xl relative space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h4 class="font-bold text-base sm:text-lg text-white font-tech">CHỈNH SỬA KÝ QUỸ & PHÍ</h4>
+                <button onclick="closeEditMarginModal()" class="text-slate-400 hover:text-white text-lg">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            
+            <p id="editNameTitle" class="text-emerald-400 font-semibold text-xs sm:text-sm font-mono"></p>
+            <input type="hidden" id="editCode">
+
+            <div class="space-y-3 text-xs">
+                <div>
+                    <label class="block text-slate-400 mb-1">Sở Giao Dịch:</label>
+                    <input type="text" id="editExchange" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-cyan-500 font-mono text-xs">
+                </div>
+                <div>
+                    <label class="block text-slate-400 mb-1">Quy Cách Hợp Đồng:</label>
+                    <input type="text" id="editUnit" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-cyan-500 text-xs">
+                </div>
+                <div>
+                    <label class="block text-slate-400 mb-1">Mức Ký Quỹ Ban Đầu (VNĐ):</label>
+                    <input type="text" id="editMargin" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-emerald-500 font-mono text-xs">
+                </div>
+                <div>
+                    <label class="block text-slate-400 mb-1">Phí Giao Dịch / Lô (VNĐ):</label>
+                    <input type="text" id="editFee" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-mono text-xs">
+                </div>
+            </div>
+
+            <div class="flex items-center justify-end gap-3 pt-2">
+                <button onclick="closeEditMarginModal()" class="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold hover:bg-slate-700 transition-all">Hủy</button>
+                <button onclick="saveMarginInfo()" class="px-4 py-2 bg-gradient-to-r from-emerald-500 to-cyan-500 text-slate-950 font-bold rounded-xl text-xs shadow-lg hover:opacity-90 transition-all">
+                    Lưu Thay Đổi
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Footer -->
-    <footer class="mt-16 text-center text-xs text-slate-500">
+    <footer class="mt-12 sm:mt-16 text-center text-xs text-slate-500 pb-6">
         <p>© 2026 Vũ Trụ Hàng Hoá Nông Sản. All rights reserved.</p>
     </footer>
 
