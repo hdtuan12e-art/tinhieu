@@ -36,7 +36,7 @@
     <!-- Firebase SDK (Version 9+) -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
-        import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+        import { getDatabase, ref, onValue, set, remove } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
 
         // Cấu hình Firebase
         const firebaseConfig = {
@@ -50,26 +50,41 @@
             measurementId: "G-VS2F1C3LXZ"
         };
 
-        // Khởi tạo Firebase
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        // Danh sách 13 mã hàng hóa mặc định
+        // Danh sách 13 mã tín hiệu gốc
         const initialSymbols = [
-            { name: "LÚA MỲ", code: "ZWAZ26", margin: "45.000.000", fee: "350.000", exchange: "CBOT", unit: "5.000 Giạ" },
-            { name: "NGÔ", code: "ZCEZ26", margin: "38.000.000", fee: "350.000", exchange: "CBOT", unit: "5.000 Giạ" },
-            { name: "ĐẬU TƯƠNG", code: "ZSEF27", margin: "62.000.000", fee: "350.000", exchange: "CBOT", unit: "5.000 Giạ" },
-            { name: "DẦU ĐẬU TƯƠNG", code: "ZLEF27", margin: "42.000.000", fee: "350.000", exchange: "CBOT", unit: "60.000 Pounds" },
-            { name: "KHÔ ĐẬU TƯƠNG", code: "ZMEF27", margin: "55.000.000", fee: "350.000", exchange: "CBOT", unit: "100 Tấn ngắn" },
-            { name: "ĐƯỜNG", code: "SBEH27", margin: "32.000.000", fee: "350.000", exchange: "ICE US", unit: "112.000 Pounds" },
-            { name: "CÀ PHÊ ROBUSTA", code: "LRCF27", margin: "95.000.000", fee: "380.000", exchange: "ICE EU", unit: "10 Tấn" },
-            { name: "BÔNG", code: "CTEZ26", margin: "50.000.000", fee: "350.000", exchange: "ICE US", unit: "50.000 Pounds" },
-            { name: "CACAO", code: "CCEZ26", margin: "110.000.000", fee: "380.000", exchange: "ICE US", unit: "10 Tấn" },
-            { name: "BẠC", code: "SILZ26", margin: "210.000.000", fee: "400.000", exchange: "COMEX", unit: "5.000 Oz" },
-            { name: "BẠCH KIM", code: "PLEF27", margin: "85.000.000", fee: "400.000", exchange: "NYMEX", unit: "50 Oz" },
-            { name: "ĐỒNG", code: "CPEZ26", margin: "140.000.000", fee: "400.000", exchange: "COMEX", unit: "25.000 Pounds" },
-            { name: "VÀNG", code: "GOLD", margin: "250.000.000", fee: "450.000", exchange: "COMEX", unit: "100 Oz" }
+            { name: "LÚA MỲ", code: "ZWAZ26" },
+            { name: "NGÔ", code: "ZCEZ26" },
+            { name: "ĐẬU TƯƠNG", code: "ZSEF27" },
+            { name: "DẦU ĐẬU TƯƠNG", code: "ZLEF27" },
+            { name: "KHÔ ĐẬU TƯƠNG", code: "ZMEF27" },
+            { name: "ĐƯỜNG", code: "SBEH27" },
+            { name: "CÀ PHÊ ROBUSTA", code: "LRCF27" },
+            { name: "BÔNG", code: "CTEZ26" },
+            { name: "CACAO", code: "CCEZ26" },
+            { name: "BẠC", code: "SILZ26" },
+            { name: "BẠCH KIM", code: "PLEF27" },
+            { name: "ĐỒNG", code: "CPEZ26" },
+            { name: "VÀNG", code: "GOLD" }
         ];
+
+        // Danh sách ký quỹ mặc định (12 mã, không có Gold)
+        const defaultMargins = {
+            "ZWAZ26": { name: "LÚA MỲ", margin: "45.000.000", fee: "350.000" },
+            "ZCEZ26": { name: "NGÔ", margin: "38.000.000", fee: "350.000" },
+            "ZSEF27": { name: "ĐẬU TƯƠNG", margin: "62.000.000", fee: "350.000" },
+            "ZLEF27": { name: "DẦU ĐẬU TƯƠNG", margin: "42.000.000", fee: "350.000" },
+            "ZMEF27": { name: "KHÔ ĐẬU TƯƠNG", margin: "55.000.000", fee: "350.000" },
+            "SBEH27": { name: "ĐƯỜNG", margin: "32.000.000", fee: "350.000" },
+            "LRCF27": { name: "CÀ PHÊ ROBUSTA", margin: "95.000.000", fee: "380.000" },
+            "CTEZ26": { name: "BÔNG", margin: "50.000.000", fee: "350.000" },
+            "CCEZ26": { name: "CACAO", margin: "110.000.000", fee: "380.000" },
+            "SILZ26": { name: "BẠC", margin: "210.000.000", fee: "400.000" },
+            "PLEF27": { name: "BẠCH KIM", margin: "85.000.000", fee: "400.000" },
+            "CPEZ26": { name: "ĐỒNG", margin: "140.000.000", fee: "400.000" }
+        };
 
         let signalsData = {};
         let marginData = {};
@@ -97,31 +112,21 @@
             if (data) {
                 marginData = data;
             } else {
-                initialSymbols.forEach(s => {
-                    marginData[s.code] = {
-                        margin: s.margin,
-                        fee: s.fee,
-                        exchange: s.exchange,
-                        unit: s.unit
-                    };
-                });
+                marginData = defaultMargins;
+                set(marginsRef, defaultMargins);
             }
             renderMarginTable();
         });
 
-        // Đẩy cập nhật tín hiệu lên Firebase
         window.toggleSignal = function(symbolCode, index) {
             if (!isAdmin) return;
-
             if (!signalsData[symbolCode]) {
                 signalsData[symbolCode] = Array(13).fill("TP");
             }
             signalsData[symbolCode][index] = signalsData[symbolCode][index] === "TP" ? "SL" : "TP";
-            
             set(ref(db, 'signals/' + symbolCode), signalsData[symbolCode]);
         };
 
-        // Tab Switcher
         window.switchTab = function(tabName) {
             const signalsTab = document.getElementById('signalsTab');
             const marginTab = document.getElementById('marginTab');
@@ -131,49 +136,43 @@
             if (tabName === 'signals') {
                 signalsTab.classList.remove('hidden');
                 marginTab.classList.add('hidden');
-
                 btnSignals.className = "flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-xs font-bold transition-all bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-[0_0_10px_rgba(16,185,129,0.2)] text-center";
                 btnMargin.className = "flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-xs font-medium text-slate-400 hover:text-white transition-all text-center";
             } else {
                 signalsTab.classList.add('hidden');
                 marginTab.classList.remove('hidden');
-
                 btnMargin.className = "flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-xs font-bold transition-all bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 shadow-[0_0_10px_rgba(6,182,212,0.2)] text-center";
                 btnSignals.className = "flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-xs font-medium text-slate-400 hover:text-white transition-all text-center";
             }
             renderMarginTable();
         };
 
-        // Render Bảng Ký Quỹ (12 mã, bỏ Gold)
+        // Render Bảng Ký Quỹ & Phí (Chỉ còn 3 cột chính + Thao tác Admin)[cite: 3]
         function renderMarginTable() {
             const searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();
             const container = document.getElementById('marginContainer');
             const adminHeader = document.getElementById('adminColHeader');
+            const adminActionsBar = document.getElementById('adminActionsBar');
             if (!container) return;
 
             if (isAdmin) {
                 adminHeader.classList.remove('hidden');
+                adminActionsBar.classList.remove('hidden');
             } else {
                 adminHeader.classList.add('hidden');
+                adminActionsBar.classList.add('hidden');
             }
 
             container.innerHTML = '';
-            const filteredSymbols = initialSymbols.filter(s => s.code !== 'GOLD');
 
-            filteredSymbols.forEach(symbol => {
-                const matchName = symbol.name.toLowerCase().includes(searchTerm);
-                const matchCode = symbol.code.toLowerCase().includes(searchTerm);
+            Object.keys(marginData).forEach(code => {
+                const item = marginData[code];
+                const matchName = item.name.toLowerCase().includes(searchTerm);
+                const matchCode = code.toLowerCase().includes(searchTerm);
 
                 if (searchTerm !== '' && !matchName && !matchCode) {
                     return;
                 }
-
-                const currentInfo = marginData[symbol.code] || {
-                    margin: symbol.margin,
-                    fee: symbol.fee,
-                    exchange: symbol.exchange,
-                    unit: symbol.unit
-                };
 
                 const tr = document.createElement('tr');
                 tr.className = "border-b border-slate-800/60 hover:bg-slate-800/30 transition-all text-xs sm:text-sm";
@@ -181,23 +180,25 @@
                     <td class="py-3.5 px-3 sm:px-4 font-bold text-white whitespace-nowrap">
                         <div class="flex items-center gap-2 sm:gap-3">
                             <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center font-tech text-[10px] sm:text-xs text-emerald-400 font-bold flex-shrink-0">
-                                ${symbol.code.substring(0,2)}
+                                ${code.substring(0,2)}
                             </div>
                             <div>
-                                <div class="font-semibold">${symbol.name}</div>
-                                <div class="text-[10px] sm:text-xs font-mono text-slate-400">${symbol.code}</div>
+                                <div class="font-semibold">${item.name}</div>
+                                <div class="text-[10px] sm:text-xs font-mono text-slate-400">${code}</div>
                             </div>
                         </div>
                     </td>
-                    <td class="py-3.5 px-3 sm:px-4 font-mono text-cyan-400 font-semibold whitespace-nowrap">${currentInfo.exchange}</td>
-                    <td class="py-3.5 px-3 sm:px-4 text-slate-300 text-[11px] sm:text-xs whitespace-nowrap">${currentInfo.unit}</td>
-                    <td class="py-3.5 px-3 sm:px-4 font-mono font-bold text-emerald-400 whitespace-nowrap">${currentInfo.margin} VNĐ</td>
-                    <td class="py-3.5 px-3 sm:px-4 font-mono text-amber-400 font-semibold whitespace-nowrap">${currentInfo.fee} VNĐ</td>
+                    <td class="py-3.5 px-3 sm:px-4 font-mono font-bold text-emerald-400 whitespace-nowrap">${item.margin} VNĐ</td>
+                    <td class="py-3.5 px-3 sm:px-4 font-mono text-amber-400 font-semibold whitespace-nowrap">${item.fee} VNĐ</td>
                     ${isAdmin ? `
-                        <td class="py-3.5 px-3 sm:px-4 text-center whitespace-nowrap">
-                            <button onclick="window.openEditMarginModal('${symbol.code}', '${symbol.name}')" 
+                        <td class="py-3.5 px-3 sm:px-4 text-center whitespace-nowrap space-x-1">
+                            <button onclick="window.openEditMarginModal('${code}', '${item.name}', '${item.margin}', '${item.fee}')" 
                                     class="px-2.5 py-1 bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 rounded-lg text-xs font-bold hover:bg-cyan-500/40 transition-all">
                                 <i class="fa-solid fa-pen-to-square mr-1"></i>Sửa
+                            </button>
+                            <button onclick="window.deleteMarginItem('${code}')" 
+                                    class="px-2.5 py-1 bg-rose-500/20 text-rose-300 border border-rose-500/50 rounded-lg text-xs font-bold hover:bg-rose-500/40 transition-all">
+                                <i class="fa-solid fa-trash mr-1"></i>Xóa
                             </button>
                         </td>
                     ` : ''}
@@ -206,41 +207,68 @@
             });
         }
 
-        // Modal Sửa Ký Quỹ
-        window.openEditMarginModal = function(code, name) {
-            const currentInfo = marginData[code] || initialSymbols.find(s => s.code === code);
-            document.getElementById('editCode').value = code;
-            document.getElementById('editNameTitle').innerText = name + " (" + code + ")";
-            document.getElementById('editExchange').value = currentInfo.exchange || '';
-            document.getElementById('editUnit').value = currentInfo.unit || '';
-            document.getElementById('editMargin').value = currentInfo.margin || '';
-            document.getElementById('editFee').value = currentInfo.fee || '';
-            
+        // Thêm / Sửa dữ liệu Ký Quỹ
+        window.openAddMarginModal = function() {
+            document.getElementById('modalTitle').innerText = "THÊM MÃ KÝ QUỸ & PHÍ MỚI";
+            document.getElementById('isEditMode').value = "false";
+            document.getElementById('inputCode').value = "";
+            document.getElementById('inputCode').disabled = false;
+            document.getElementById('inputName').value = "";
+            document.getElementById('inputMargin').value = "";
+            document.getElementById('inputFee').value = "";
             document.getElementById('marginModal').classList.remove('hidden');
         };
 
-        window.closeEditMarginModal = function() {
+        window.openEditMarginModal = function(code, name, margin, fee) {
+            document.getElementById('modalTitle').innerText = "CHỈNH SỬA KÝ QUỸ & PHÍ";
+            document.getElementById('isEditMode').value = "true";
+            document.getElementById('inputCode').value = code;
+            document.getElementById('inputCode').disabled = true; // Không cho sửa mã code gốc để tránh lệch key
+            document.getElementById('inputName').value = name;
+            document.getElementById('inputMargin').value = margin;
+            document.getElementById('inputFee').value = fee;
+            document.getElementById('marginModal').classList.remove('hidden');
+        };
+
+        window.closeMarginModal = function() {
             document.getElementById('marginModal').classList.add('hidden');
         };
 
-        window.saveMarginInfo = function() {
-            const code = document.getElementById('editCode').value;
+        window.saveMarginItem = function() {
+            const isEdit = document.getElementById('isEditMode').value === "true";
+            const code = document.getElementById('inputCode').value.trim().toUpperCase();
+            const name = document.getElementById('inputName').value.trim();
+            const margin = document.getElementById('inputMargin').value.trim();
+            const fee = document.getElementById('inputFee').value.trim();
+
+            if (!code || !name || !margin || !fee) {
+                showToast("❌ Vui lòng điền đầy đủ thông tin!", "error");
+                return;
+            }
+
             const updatedData = {
-                exchange: document.getElementById('editExchange').value.trim(),
-                unit: document.getElementById('editUnit').value.trim(),
-                margin: document.getElementById('editMargin').value.trim(),
-                fee: document.getElementById('editFee').value.trim()
+                name: name,
+                margin: margin,
+                fee: fee
             };
 
             set(ref(db, 'margins/' + code), updatedData).then(() => {
-                showToast("✅ Đã lưu thông tin ký quỹ cho " + code, "success");
-                closeEditMarginModal();
+                showToast("✅ Đã lưu thành công!", "success");
+                closeMarginModal();
             }).catch(err => {
-                showToast("❌ Lỗi khi lưu dữ liệu!", "error");
+                showToast("❌ Lỗi hệ thống!", "error");
             });
         };
 
-        // Render Dashboard Tín Hiệu (13 mã đầy đủ)
+        window.deleteMarginItem = function(code) {
+            if (confirm(`Bạn có chắc chắn muốn xóa mã ${code} khỏi bảng ký quỹ không?`)) {
+                remove(ref(db, 'margins/' + code)).then(() => {
+                    showToast("🗑️ Đã xóa thành công!", "success");
+                });
+            }
+        };
+
+        // Render Dashboard Tín Hiệu (13 mã)
         function renderDashboard() {
             let totalTP = 0;
             let totalSL = 0;
@@ -277,7 +305,7 @@
                     const isTP = status === 'TP';
                     dotsHTML += `
                         <button onclick="window.toggleSignal('${symbol.code}', ${i})" 
-                                title="Lệnh ${i+1}: ${isTP ? 'TP (Chốt Lời)' : 'SL (Cắt Lỗ)'} ${isAdmin ? '- Bấm để đổi' : ''}" 
+                                title="Lệnh ${i+1}: ${isTP ? 'TP (Chốt Lời)' : 'SL (Cắt Lỗ)'}" 
                                 class="relative group/dot flex items-center justify-center p-0.5 sm:p-1 focus:outline-none transition-transform hover:scale-125 flex-shrink-0">
                             <span class="w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-bold transition-all duration-300 ${
                                 isTP 
@@ -316,14 +344,12 @@
             });
 
             const overallWinrate = totalSignals > 0 ? ((totalTP / totalSignals) * 100).toFixed(1) : "0.0";
-            
             document.getElementById('statWinrate').innerText = overallWinrate + "%";
             document.getElementById('statTotalTP').innerText = totalTP;
             document.getElementById('statTotalSL').innerText = totalSL;
             document.getElementById('statTotalSignals').innerText = totalSignals;
         }
 
-        // Quản lý Chế độ Admin
         window.toggleAdminMode = function() {
             if (!isAdmin) {
                 const pwd = prompt("🔒 Nhập mật khẩu quản trị viên (Admin):");
@@ -345,7 +371,6 @@
             renderMarginTable();
         };
 
-        // Tìm kiếm Realtime
         document.getElementById('searchInput').addEventListener('input', () => {
             renderDashboard();
             renderMarginTable();
@@ -359,9 +384,7 @@
             }`;
             toast.innerHTML = msg;
             document.body.appendChild(toast);
-            setTimeout(() => {
-                toast.classList.remove('translate-y-10', 'opacity-0');
-            }, 10);
+            setTimeout(() => toast.classList.remove('translate-y-10', 'opacity-0'), 10);
             setTimeout(() => {
                 toast.classList.add('translate-y-10', 'opacity-0');
                 setTimeout(() => toast.remove(), 500);
@@ -378,7 +401,6 @@
             background-attachment: fixed;
             font-family: 'Plus Jakarta Sans', sans-serif;
         }
-
         .glass-card {
             background: rgba(15, 23, 42, 0.65);
             backdrop-filter: blur(16px);
@@ -386,7 +408,6 @@
             border: 1px solid rgba(255, 255, 255, 0.08);
             box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
         }
-
         .text-gradient {
             background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
             -webkit-background-clip: text;
@@ -438,51 +459,47 @@
 
         <!-- Dashboard 4 Thẻ KPI -->
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-            <!-- Winrate -->
             <div class="glass-card p-4 sm:p-5 rounded-2xl relative overflow-hidden border-l-4 border-l-emerald-500">
                 <div class="flex items-center justify-between text-slate-400 mb-1 sm:mb-2">
                     <span class="text-[10px] sm:text-xs font-semibold uppercase tracking-wider">Tỷ Lệ Thắng</span>
                     <i class="fa-solid fa-trophy text-amber-400 text-xs sm:text-sm"></i>
                 </div>
                 <div class="text-xl sm:text-4xl font-extrabold text-white font-mono" id="statWinrate">0%</div>
-                <div class="text-[10px] sm:text-xs text-emerald-400 mt-1.Set sm:mt-2 flex items-center gap-1">
+                <div class="text-[10px] sm:text-xs text-emerald-400 mt-1 flex items-center gap-1">
                     <i class="fa-solid fa-arrow-trend-up"></i>
-                    <span class="truncate">Tối ưu hóa lợi nhuận</span>
+                    <span>Tối ưu hóa lợi nhuận</span>
                 </div>
             </div>
 
-            <!-- Số Lệnh TP -->
             <div class="glass-card p-4 sm:p-5 rounded-2xl relative overflow-hidden border-l-4 border-l-emerald-400">
                 <div class="flex items-center justify-between text-slate-400 mb-1 sm:mb-2">
                     <span class="text-[10px] sm:text-xs font-semibold uppercase tracking-wider">Tổng Lệnh TP</span>
                     <i class="fa-solid fa-circle-check text-emerald-400 text-xs sm:text-sm"></i>
                 </div>
                 <div class="text-xl sm:text-4xl font-extrabold text-emerald-400 font-mono" id="statTotalTP">0</div>
-                <div class="text-[10px] sm:text-xs text-slate-400 mt-1 sm:mt-2 truncate">🟢 Đạt mục tiêu chốt lời</div>
+                <div class="text-[10px] sm:text-xs text-slate-400 mt-1">🟢 Đạt mục tiêu chốt lời</div>
             </div>
 
-            <!-- Số Lệnh SL -->
             <div class="glass-card p-4 sm:p-5 rounded-2xl relative overflow-hidden border-l-4 border-l-rose-500">
                 <div class="flex items-center justify-between text-slate-400 mb-1 sm:mb-2">
                     <span class="text-[10px] sm:text-xs font-semibold uppercase tracking-wider">Tổng Lệnh SL</span>
                     <i class="fa-solid fa-circle-xmark text-rose-400 text-xs sm:text-sm"></i>
                 </div>
                 <div class="text-xl sm:text-4xl font-extrabold text-rose-400 font-mono" id="statTotalSL">0</div>
-                <div class="text-[10px] sm:text-xs text-slate-400 mt-1 sm:mt-2 truncate">🔴 Quản trị rủi ro chặt</div>
+                <div class="text-[10px] sm:text-xs text-slate-400 mt-1">🔴 Quản trị rủi ro chặt</div>
             </div>
 
-            <!-- Tổng Số Lệnh -->
             <div class="glass-card p-4 sm:p-5 rounded-2xl relative overflow-hidden border-l-4 border-l-cyan-500">
                 <div class="flex items-center justify-between text-slate-400 mb-1 sm:mb-2">
                     <span class="text-[10px] sm:text-xs font-semibold uppercase tracking-wider">Tổng Lệnh Đã Bắn</span>
                     <i class="fa-solid fa-bolt text-cyan-400 text-xs sm:text-sm"></i>
                 </div>
                 <div class="text-xl sm:text-4xl font-extrabold text-cyan-400 font-mono" id="statTotalSignals">0</div>
-                <div class="text-[10px] sm:text-xs text-slate-400 mt-1 sm:mt-2 truncate">13 mã hàng hóa</div>
+                <div class="text-[10px] sm:text-xs text-slate-400 mt-1">13 mã hàng hóa</div>
             </div>
         </div>
 
-        <!-- Thanh Tìm Kiếm & Tab Switcher + Control -->
+        <!-- Thanh Tìm Kiếm & Tab Switcher -->
         <div class="glass-card p-3 sm:p-4 rounded-2xl flex flex-col gap-3">
             <div class="flex flex-col sm:flex-row items-center justify-between gap-3 w-full">
                 <div class="relative w-full sm:w-80">
@@ -491,7 +508,6 @@
                            class="w-full bg-slate-900/80 border border-slate-700/80 rounded-xl pl-11 pr-4 py-2.5 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-all">
                 </div>
 
-                <!-- TAB SWITCHER (Tối ưu full width trên di động) -->
                 <div class="flex items-center bg-slate-950/80 p-1 rounded-2xl border border-slate-800 gap-1 w-full sm:w-auto">
                     <button id="btnTabSignals" onclick="switchTab('signals')" class="flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-xs font-bold transition-all bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-[0_0_10px_rgba(16,185,129,0.2)] text-center">
                         <i class="fa-solid fa-signal mr-1.5"></i>Tín Hiệu
@@ -521,28 +537,29 @@
             </div>
         </div>
 
-        <!-- TAB 2: Trang Thông tin Ký Quỹ & Phí Giao Dịch (12 Mã - Không có Vàng) -->
+        <!-- TAB 2: Trang Thông tin Ký Quỹ & Phí Giao Dịch -->
         <div id="marginTab" class="hidden glass-card rounded-2xl p-4 sm:p-6 border border-slate-800">
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 sm:mb-6">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 sm:mb-6">
                 <div>
                     <h3 class="text-base sm:text-xl font-bold text-white font-tech">BẢNG TRA CỨU KÝ QUỸ & PHÍ</h3>
-                    <p class="text-[11px] sm:text-xs text-slate-400 mt-0.5">Mức ký quỹ tham khảo tính theo quy chuẩn Sở Giao dịch Hàng hóa (MXV)</p>
+                    <p class="text-[11px] sm:text-xs text-slate-400 mt-0.5">Mức ký quỹ tham khảo tính theo quy chuẩn giao dịch</p>
                 </div>
-                <div class="px-3 py-1 bg-cyan-500/10 border border-cyan-500/30 rounded-lg text-cyan-400 text-[11px] sm:text-xs font-mono self-start sm:self-auto">
-                    Đơn vị: VNĐ
+                
+                <!-- Nút Thêm Mã Mới (Chỉ hiện khi bật Admin)[cite: 3] -->
+                <div id="adminActionsBar" class="hidden">
+                    <button onclick="openAddMarginModal()" class="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 text-slate-950 font-bold rounded-xl text-xs shadow-[0_0_15px_rgba(16,185,129,0.3)] hover:opacity-90 transition-all flex items-center gap-2">
+                        <i class="fa-solid fa-plus-circle text-sm"></i> Thêm Mã & Ký Quỹ Mới
+                    </button>
                 </div>
             </div>
 
-            <!-- Bọc trong khung cuộn ngang mượt mà cho mobile -->
             <div class="w-full overflow-x-auto scrollbar-thin">
-                <table class="w-full text-left border-collapse min-w-[650px]">
+                <table class="w-full text-left border-collapse min-w-[500px]">
                     <thead>
                         <tr class="border-b border-slate-700/80 text-[11px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider">
                             <th class="py-3 px-3 sm:px-4">Tên Hàng Hóa / Mã</th>
-                            <th class="py-3 px-3 sm:px-4">Sở Giao Dịch</th>
-                            <th class="py-3 px-3 sm:px-4">Quy Cách Hợp Đồng</th>
-                            <th class="py-3 px-3 sm:px-4">Mức Ký Quỹ</th>
-                            <th class="py-3 px-3 sm:px-4">Phí Giao Dịch/Lô</th>
+                            <th class="py-3 px-3 sm:px-4">Mức Ký Quỹ Ban Đầu</th>
+                            <th class="py-3 px-3 sm:px-4">Phí Giao Dịch / Lô</th>
                             <th id="adminColHeader" class="py-3 px-3 sm:px-4 text-center hidden">Thao Tác</th>
                         </tr>
                     </thead>
@@ -575,42 +592,41 @@
 
     </main>
 
-    <!-- MODAL CHỈNH SỬA KÝ QUỸ & PHÍ -->
+    <!-- MODAL THÊM / SỬA KÝ QUỸ & PHÍ -->
     <div id="marginModal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 hidden">
         <div class="glass-card w-full max-w-md rounded-2xl p-5 sm:p-6 border border-slate-700 shadow-2xl relative space-y-4">
             <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h4 class="font-bold text-base sm:text-lg text-white font-tech">CHỈNH SỬA KÝ QUỸ & PHÍ</h4>
-                <button onclick="closeEditMarginModal()" class="text-slate-400 hover:text-white text-lg">
+                <h4 id="modalTitle" class="font-bold text-base sm:text-lg text-white font-tech">THÊM / SỬA MÃ KÝ QUỸ</h4>
+                <button onclick="closeMarginModal()" class="text-slate-400 hover:text-white text-lg">
                     <i class="fa-solid fa-xmark"></i>
                 </button>
             </div>
             
-            <p id="editNameTitle" class="text-emerald-400 font-semibold text-xs sm:text-sm font-mono"></p>
-            <input type="hidden" id="editCode">
+            <input type="hidden" id="isEditMode" value="false">
 
             <div class="space-y-3 text-xs">
                 <div>
-                    <label class="block text-slate-400 mb-1">Sở Giao Dịch:</label>
-                    <input type="text" id="editExchange" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-cyan-500 font-mono text-xs">
+                    <label class="block text-slate-400 mb-1">Mã Hàng Hóa (Ví dụ: ZWAZ26, SBEH27...):</label>
+                    <input type="text" id="inputCode" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-cyan-500 font-mono text-xs uppercase" placeholder="Nhập mã hợp đồng">
                 </div>
                 <div>
-                    <label class="block text-slate-400 mb-1">Quy Cách Hợp Đồng:</label>
-                    <input type="text" id="editUnit" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-cyan-500 text-xs">
+                    <label class="block text-slate-400 mb-1">Tên Hàng Hóa (Ví dụ: LÚA MỲ, ĐƯỜNG...):</label>
+                    <input type="text" id="inputName" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-cyan-500 text-xs" placeholder="Nhập tên hiển thị">
                 </div>
                 <div>
                     <label class="block text-slate-400 mb-1">Mức Ký Quỹ Ban Đầu (VNĐ):</label>
-                    <input type="text" id="editMargin" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-emerald-500 font-mono text-xs">
+                    <input type="text" id="inputMargin" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-emerald-500 font-mono text-xs" placeholder="Ví dụ: 45.000.000">
                 </div>
                 <div>
                     <label class="block text-slate-400 mb-1">Phí Giao Dịch / Lô (VNĐ):</label>
-                    <input type="text" id="editFee" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-mono text-xs">
+                    <input type="text" id="inputFee" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-mono text-xs" placeholder="Ví dụ: 350.000">
                 </div>
             </div>
 
             <div class="flex items-center justify-end gap-3 pt-2">
-                <button onclick="closeEditMarginModal()" class="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold hover:bg-slate-700 transition-all">Hủy</button>
-                <button onclick="saveMarginInfo()" class="px-4 py-2 bg-gradient-to-r from-emerald-500 to-cyan-500 text-slate-950 font-bold rounded-xl text-xs shadow-lg hover:opacity-90 transition-all">
-                    Lưu Thay Đổi
+                <button onclick="closeMarginModal()" class="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold hover:bg-slate-700 transition-all">Hủy</button>
+                <button onclick="saveMarginItem()" class="px-4 py-2 bg-gradient-to-r from-emerald-500 to-cyan-500 text-slate-950 font-bold rounded-xl text-xs shadow-lg hover:opacity-90 transition-all">
+                    Lưu Lại
                 </button>
             </div>
         </div>
